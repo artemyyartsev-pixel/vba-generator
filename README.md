@@ -20,23 +20,43 @@
 - **AI:** Anthropic Claude Sonnet
 - **Build:** Vite
 
-## Запуск
+## Быстрый старт
 
 ```bash
-npm install
+git clone https://github.com/artemyyartsev-pixel/vba-generator
+cd vba-generator
+./setup.sh
 ```
 
-Создайте файл `.env` и добавьте ключ Anthropic:
+Скрипт создаст `.env`, попросит вставить `ANTHROPIC_API_KEY` и установит зависимости.
+Получить ключ: [console.anthropic.com/settings/keys](https://console.anthropic.com/settings/keys)
 
-```
-ANTHROPIC_API_KEY=your_key_here
-```
+Затем запустите:
 
 ```bash
+make dev
+# или
 npm run dev
 ```
 
 Откройте [http://localhost:5000](http://localhost:5000)
+
+## Команды
+
+| Команда | Описание |
+|---------|----------|
+| `make setup` | Первый запуск: `.env` + `npm install` |
+| `make dev` | Запуск в режиме разработки |
+| `make build` | Сборка production-бандла |
+
+## Ручная установка
+
+```bash
+npm install
+cp .env.example .env
+# Вставьте ANTHROPIC_API_KEY в .env
+npm run dev
+```
 
 ## Структура проекта
 
