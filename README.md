@@ -22,10 +22,18 @@
 
 ## Быстрый старт
 
+**macOS / Linux / Git Bash:**
 ```bash
 git clone https://github.com/artemyyartsev-pixel/vba-generator
 cd vba-generator
 ./setup.sh
+```
+
+**Windows (cmd / PowerShell):**
+```bat
+git clone https://github.com/artemyyartsev-pixel/vba-generator
+cd vba-generator
+setup.bat
 ```
 
 Скрипт создаст `.env`, попросит вставить `ANTHROPIC_API_KEY` и установит зависимости.
@@ -34,8 +42,6 @@ cd vba-generator
 Затем запустите:
 
 ```bash
-make dev
-# или
 npm run dev
 ```
 
