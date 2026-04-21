@@ -409,7 +409,16 @@ export default function Home() {
                   <SelectContent>
                     {modelOptions.map((option) => (
                       <SelectItem key={option.id} value={option.id} disabled={!option.available}>
-                        {option.label}{!option.available ? " (нет ключа)" : ""}
+                        <span className="flex items-center justify-between w-full gap-3">
+                          <span>{option.label}{!option.available ? " (нет ключа)" : ""}</span>
+                          <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded ${
+                            option.provider === "openrouter"
+                              ? "bg-blue-500/10 text-blue-400"
+                              : "bg-green/10 text-green"
+                          }`}>
+                            {option.provider === "openrouter" ? "OpenRouter" : "Claude API"}
+                          </span>
+                        </span>
                       </SelectItem>
                     ))}
                   </SelectContent>
