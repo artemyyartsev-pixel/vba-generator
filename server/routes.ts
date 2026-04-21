@@ -3,16 +3,31 @@ import type { Server } from "http";
 import Anthropic from "@anthropic-ai/sdk";
 import { storage } from "./storage";
 
-const client = new Anthropic();
 const APP_VERSION = process.env.npm_package_version || "dev";
 const DEPLOYED_AT = process.env.DEPLOYED_AT || new Date().toISOString();
 const LLM_TIMEOUT_MS = 90000;
-const AVAILABLE_MODELS = [
-  "claude_sonnet_4_6",
-  "claude_opus_4_1",
-  "claude_3_5_haiku",
-] as const;
+
+const MODELS: Record<string, { provider: "anthropic" | "openrouter"; model: string; label: string }> = {
+  claude_sonnet_4_6: { provider: "anthropic",   model: "claude-sonnet-4-5",             label: "Claude Sonnet 4.6" },
+  claude_opus_4_1:   { provider: "anthropic",   model: "claude-opus-4-5",               label: "Claude Opus 4.1" },
+  claude_3_5_haiku:  { provider: "anthropic",   model: "claude-haiku-4-5",              label: "Claude 3.5 Haiku" },
+  deepseek_v3:       { provider: "openrouter",  model: "deepseek/deepseek-chat",        label: "DeepSeek V3" },
+  deepseek_r1:       { provider: "openrouter",  model: "deepseek/deepseek-r1",          label: "DeepSeek R1" },
+  gpt_4o_mini:       { provider: "openrouter",  model: "openai/gpt-4o-mini",            label: "GPT-4o mini" },
+};
+
 const DEFAULT_MODEL = "claude_sonnet_4_6";
+
+function getClient(provider: "anthropic" | "openrouter") {
+  if (provider === "openrouter") {
+    return new Anthropic({
+      apiKey: process.env.OPENROUTER_API_KEY,
+      baseURL: "https://openrouter.ai/api/v1",
+      defaultHeaders: { "HTTP-Referer": "https://vba-generator.app" },
+    });
+  }
+  return new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+}
 
 const SYSTEM_PROMPT = `Ты — эксперт по VBA (Visual Basic for Applications) для Microsoft Excel. 
 Пользователь описывает задачу на русском языке, а ты генерируешь готовый, рабочий VBA-макрос.
@@ -53,14 +68,13 @@ export function registerRoutes(httpServer: Server, app: Express) {
         return res.status(400).json({ error: "Опишите задачу подробнее" });
       }
 
-      const selectedModel =
-        typeof model === "string" && AVAILABLE_MODELS.includes(model as (typeof AVAILABLE_MODELS)[number])
-          ? model
-          : DEFAULT_MODEL;
+      const modelId = typeof model === "string" && MODELS[model] ? model : DEFAULT_MODEL;
+      const modelCfg = MODELS[modelId];
+      const client = getClient(modelCfg.provider);
 
       const message = await client.messages.create(
         {
-          model: selectedModel,
+          model: modelCfg.model,
           max_tokens: 2048,
           system: SYSTEM_PROMPT,
           messages: [{ role: "user", content: `Задача: ${task.trim()}` }],
@@ -89,7 +103,8 @@ export function registerRoutes(httpServer: Server, app: Express) {
         explanation: result.explanation,
         category: result.category,
         steps: result.steps || [],
-        model: selectedModel,
+        model: modelId,
+        modelLabel: modelCfg.label,
       });
     } catch (err: any) {
       console.error("Generate error:", err);
@@ -102,6 +117,18 @@ export function registerRoutes(httpServer: Server, app: Express) {
 
       res.status(500).json({ error: "Ошибка генерации: " + err.message });
     }
+  });
+
+  app.get("/api/models", (_req, res) => {
+    const hasAnthropic = !!process.env.ANTHROPIC_API_KEY;
+    const hasOpenRouter = !!process.env.OPENROUTER_API_KEY;
+    const list = Object.entries(MODELS).map(([id, cfg]) => ({
+      id,
+      label: cfg.label,
+      provider: cfg.provider,
+      available: cfg.provider === "anthropic" ? hasAnthropic : hasOpenRouter,
+    }));
+    res.json(list);
   });
 
   app.get("/api/history", (_req, res) => {
