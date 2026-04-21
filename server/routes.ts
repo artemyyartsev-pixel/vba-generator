@@ -4,6 +4,15 @@ import Anthropic from "@anthropic-ai/sdk";
 import { storage } from "./storage";
 
 const client = new Anthropic();
+const APP_VERSION = process.env.npm_package_version || "dev";
+const DEPLOYED_AT = process.env.DEPLOYED_AT || new Date().toISOString();
+const LLM_TIMEOUT_MS = 90000;
+const AVAILABLE_MODELS = [
+  "claude_sonnet_4_6",
+  "claude_opus_4_1",
+  "claude_3_5_haiku",
+] as const;
+const DEFAULT_MODEL = "claude_sonnet_4_6";
 
 const SYSTEM_PROMPT = `Ты — эксперт по VBA (Visual Basic for Applications) для Microsoft Excel. 
 Пользователь описывает задачу на русском языке, а ты генерируешь готовый, рабочий VBA-макрос.
@@ -30,19 +39,36 @@ const SYSTEM_PROMPT = `Ты — эксперт по VBA (Visual Basic for Applic
 }`;
 
 export function registerRoutes(httpServer: Server, app: Express) {
+  app.get("/api/meta", (_req, res) => {
+    res.json({
+      version: APP_VERSION,
+      deployedAt: DEPLOYED_AT,
+    });
+  });
+
   app.post("/api/generate", async (req, res) => {
     try {
-      const { task } = req.body;
+      const { task, model } = req.body;
       if (!task || typeof task !== "string" || task.trim().length < 3) {
         return res.status(400).json({ error: "Опишите задачу подробнее" });
       }
 
-      const message = await client.messages.create({
-        model: "claude_sonnet_4_6",
-        max_tokens: 2048,
-        system: SYSTEM_PROMPT,
-        messages: [{ role: "user", content: `Задача: ${task.trim()}` }],
-      });
+      const selectedModel =
+        typeof model === "string" && AVAILABLE_MODELS.includes(model as (typeof AVAILABLE_MODELS)[number])
+          ? model
+          : DEFAULT_MODEL;
+
+      const message = await client.messages.create(
+        {
+          model: selectedModel,
+          max_tokens: 2048,
+          system: SYSTEM_PROMPT,
+          messages: [{ role: "user", content: `Задача: ${task.trim()}` }],
+        },
+        {
+          timeout: LLM_TIMEOUT_MS,
+        },
+      );
 
       const rawText = (message.content[0] as any).text;
       
@@ -63,9 +89,17 @@ export function registerRoutes(httpServer: Server, app: Express) {
         explanation: result.explanation,
         category: result.category,
         steps: result.steps || [],
+        model: selectedModel,
       });
     } catch (err: any) {
       console.error("Generate error:", err);
+      if (err?.name === "APIConnectionTimeoutError") {
+        return res.status(504).json({
+          error:
+            "Claude не ответил вовремя. Попробуйте модель Claude 3.5 Haiku или повторите запрос чуть позже.",
+        });
+      }
+
       res.status(500).json({ error: "Ошибка генерации: " + err.message });
     }
   });

@@ -7,6 +7,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Code2,
   Copy,
   CheckCheck,
@@ -29,6 +36,7 @@ interface GenerationResult {
   explanation: string;
   category: string;
   steps: string[];
+  model?: string;
 }
 
 interface Example {
@@ -45,6 +53,20 @@ interface HistoryItem {
   explanation: string;
   category: string;
 }
+
+interface AppMeta {
+  version: string;
+  deployedAt: string;
+}
+
+const MODEL_OPTIONS = [
+  { value: "claude_sonnet_4_6", label: "Claude Sonnet 4.6" },
+  { value: "claude_opus_4_1", label: "Claude Opus 4.1" },
+  { value: "claude_3_5_haiku", label: "Claude 3.5 Haiku" },
+] as const;
+const MODEL_LABELS: Record<string, string> = Object.fromEntries(
+  MODEL_OPTIONS.map((option) => [option.value, option.label]),
+);
 
 // VBA keyword highlighter (runs in browser)
 // Processes line by line to avoid regex cross-contamination between tokens
@@ -225,6 +247,7 @@ function StepsPanel({ steps }: { steps: string[] }) {
 export default function Home() {
   const { toast } = useToast();
   const [task, setTask] = useState("");
+  const [model, setModel] = useState<(typeof MODEL_OPTIONS)[number]["value"]>("claude_sonnet_4_6");
   const [result, setResult] = useState<GenerationResult | null>(null);
   const [copied, setCopied] = useState(false);
   const resultRef = useRef<HTMLDivElement>(null);
@@ -236,10 +259,22 @@ export default function Home() {
   const { data: history = [] } = useQuery<HistoryItem[]>({
     queryKey: ["/api/history"],
   });
+  const { data: appMeta, isLoading: appMetaLoading, isError: appMetaError } = useQuery<AppMeta>({
+    queryKey: ["/api/meta"],
+  });
+  const deployLabel = appMeta?.deployedAt
+    ? new Date(appMeta.deployedAt).toLocaleString("ru-RU", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    : null;
 
   const mutation = useMutation({
-    mutationFn: async (taskText: string) => {
-      const res = await apiRequest("POST", "/api/generate", { task: taskText });
+    mutationFn: async ({ taskText, modelName }: { taskText: string; modelName: string }) => {
+      const res = await apiRequest("POST", "/api/generate", { task: taskText, model: modelName });
       return res.json() as Promise<GenerationResult>;
     },
     onSuccess: (data) => {
@@ -275,7 +310,7 @@ export default function Home() {
       toast({ title: "Опишите задачу", description: "Минимум 5 символов", variant: "destructive" });
       return;
     }
-    mutation.mutate(task.trim());
+    mutation.mutate({ taskText: task.trim(), modelName: model });
   }
 
   return (
@@ -301,6 +336,15 @@ export default function Home() {
             <div className="w-2 h-2 rounded-full bg-[var(--color-green)] animate-pulse" />
             <span className="text-xs text-muted-custom font-mono hidden sm:inline">Claude Sonnet</span>
           </div>
+        </div>
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 pb-2">
+          <span className="inline-flex items-center rounded border border-green/30 bg-green/10 px-2 py-0.5 text-[11px] text-green font-mono">
+            {appMetaLoading
+              ? "Проверка версии..."
+              : appMetaError
+                ? "Нет связи с сервером метаданных"
+                : `v${appMeta?.version || "—"} (${deployLabel || "—"})`}
+          </span>
         </div>
       </header>
 
@@ -339,6 +383,27 @@ export default function Home() {
                   if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) handleSubmit();
                 }}
               />
+              <div className="mt-3 mb-3">
+                <span className="text-xs text-faint font-mono block mb-1.5">LLM модель</span>
+                <Select
+                  value={model}
+                  onValueChange={(nextModel) => {
+                    setModel(nextModel as (typeof MODEL_OPTIONS)[number]["value"]);
+                    if (result) setResult(null);
+                  }}
+                >
+                  <SelectTrigger className="bg-code border-[var(--color-text-faint)] text-sm font-mono focus:ring-green/20 focus:border-green">
+                    <SelectValue placeholder="Выберите модель" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {MODEL_OPTIONS.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
               <div className="flex items-center justify-between mt-1 mb-3">
                 <span className="text-xs text-faint font-mono">Ctrl+Enter для генерации</span>
                 <span className={`text-xs font-mono ${task.length > 5 ? "text-green" : "text-faint"}`}>
@@ -446,6 +511,12 @@ export default function Home() {
                       <span className="text-sm font-mono font-semibold text-green">Макрос готов</span>
                       <div className="flex items-center gap-2 mt-0.5">
                         <CategoryBadge cat={result.category} />
+                        <Badge
+                          variant="outline"
+                          className="border-green/30 bg-green/10 text-green text-[10px] font-mono"
+                        >
+                          {MODEL_LABELS[result.model || model] || result.model || model}
+                        </Badge>
                       </div>
                     </div>
                   </div>
