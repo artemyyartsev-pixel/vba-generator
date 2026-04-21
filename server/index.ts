@@ -61,6 +61,33 @@ app.use((req, res, next) => {
   next();
 });
 
+// Проверка API ключей при старте
+const hasAnthropic = !!process.env.ANTHROPIC_API_KEY;
+const hasOpenRouter = !!process.env.OPENROUTER_API_KEY;
+
+if (!hasAnthropic && !hasOpenRouter) {
+  console.error("");
+  console.error("╔══════════════════════════════════════════════════════════════╗");
+  console.error("║  ОШИБКА: API ключи не найдены. Сервер не запущен.           ║");
+  console.error("╚══════════════════════════════════════════════════════════════╝");
+  console.error("");
+  console.error("  Задайте хотя бы один ключ в файле .env:");
+  console.error("");
+  console.error("  OPENROUTER_API_KEY=sk-or-v1-...  (рекомендуется, работает из РФ)");
+  console.error("  → Получить: https://openrouter.ai/keys");
+  console.error("");
+  console.error("  ANTHROPIC_API_KEY=sk-ant-...      (Claude Sonnet/Haiku)");
+  console.error("  → Получить: https://console.anthropic.com/settings/keys");
+  console.error("");
+  process.exit(1);
+}
+
+// Показываем какие модели доступны
+const available: string[] = [];
+if (hasAnthropic) available.push("Claude Sonnet 4.6, Claude Opus 4.1, Claude 3.5 Haiku");
+if (hasOpenRouter) available.push("DeepSeek V3, DeepSeek R1, GPT-4o mini");
+log(`Доступные модели: ${available.join(" | ")}`);
+
 (async () => {
   await registerRoutes(httpServer, app);
 
