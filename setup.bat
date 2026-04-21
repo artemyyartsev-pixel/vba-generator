@@ -1,4 +1,5 @@
 @echo off
+setlocal EnableDelayedExpansion
 chcp 65001 >nul
 echo.
 echo === VBA Generator - Setup ===
@@ -8,7 +9,7 @@ echo.
 where node >nul 2>&1
 if errorlevel 1 (
     echo [ОШИБКА] Node.js не найден.
-    echo Скачайте и установите: https://nodejs.org
+    echo Скачайте и установите Node.js 20 LTS: https://nodejs.org
     pause
     exit /b 1
 )
@@ -29,19 +30,40 @@ if not exist .env (
     echo [--] Файл .env уже существует, пропускаю
 )
 
-:: Проверяем наличие ключа
-findstr /c:"your_key_here" .env >nul 2>&1
+:: Проверяем наличие незаполненных ключей
+findstr /c:"your_anthropic_key_here" /c:"your_openrouter_key_here" .env >nul 2>&1
 if not errorlevel 1 (
     echo.
-    echo Вставьте ваш ANTHROPIC_API_KEY:
-    echo Получить ключ: https://console.anthropic.com/settings/keys
+    echo ============================================
+    echo  Настройка API ключей
+    echo  Нужен хотя бы один ключ для работы.
+    echo ============================================
     echo.
-    set /p APIKEY="  Ключ: "
-    if not "!APIKEY!"=="" (
-        powershell -Command "(Get-Content .env) -replace 'your_key_here', '!APIKEY!' | Set-Content .env"
-        echo [OK] Ключ сохранён в .env
-    ) else (
-        echo [!] Ключ не введён. Вставьте его вручную в файл .env перед запуском.
+    echo Вариант 1: OpenRouter (рекомендуется для России)
+    echo   Работает без VPN
+    echo   Получить ключ: https://openrouter.ai/keys
+    echo   Модели: DeepSeek V3, DeepSeek R1, GPT-4o mini
+    echo.
+    set /p OR_KEY="  Вставьте OPENROUTER_API_KEY (или Enter чтобы пропустить): "
+    if not "!OR_KEY!"=="" (
+        powershell -Command "(Get-Content .env) -replace 'your_openrouter_key_here', '!OR_KEY!' | Set-Content .env"
+        echo   [OK] OPENROUTER_API_KEY сохранён
+    )
+
+    echo.
+    echo Вариант 2: Anthropic (Claude Sonnet / Haiku)
+    echo   Заблокирован в России без VPN
+    echo   Получить ключ: https://console.anthropic.com/settings/keys
+    echo.
+    set /p AN_KEY="  Вставьте ANTHROPIC_API_KEY (или Enter чтобы пропустить): "
+    if not "!AN_KEY!"=="" (
+        powershell -Command "(Get-Content .env) -replace 'your_anthropic_key_here', '!AN_KEY!' | Set-Content .env"
+        echo   [OK] ANTHROPIC_API_KEY сохранён
+    )
+
+    if "!OR_KEY!"=="" if "!AN_KEY!"=="" (
+        echo.
+        echo   [!] Ключи не введены. Добавьте их в .env вручную перед запуском.
     )
 )
 
