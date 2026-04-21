@@ -18,15 +18,50 @@ const MODELS: Record<string, { provider: "anthropic" | "openrouter"; model: stri
 
 const DEFAULT_MODEL = "claude_sonnet_4_6";
 
-function getClient(provider: "anthropic" | "openrouter") {
-  if (provider === "openrouter") {
-    return new Anthropic({
-      apiKey: process.env.OPENROUTER_API_KEY,
-      baseURL: "https://openrouter.ai/api/v1",
-      defaultHeaders: { "HTTP-Referer": "https://vba-generator.app" },
+const anthropicClient = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+
+async function callLLM(
+  modelCfg: { provider: "anthropic" | "openrouter"; model: string },
+  system: string,
+  userContent: string,
+): Promise<string> {
+  if (modelCfg.provider === "openrouter") {
+    const resp = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
+        "Content-Type": "application/json",
+        "HTTP-Referer": "https://vba-generator.app",
+        "X-Title": "VBA Generator",
+      },
+      body: JSON.stringify({
+        model: modelCfg.model,
+        max_tokens: 2048,
+        messages: [
+          { role: "system", content: system },
+          { role: "user", content: userContent },
+        ],
+      }),
+      signal: AbortSignal.timeout(LLM_TIMEOUT_MS),
     });
+    if (!resp.ok) {
+      const text = await resp.text();
+      throw new Error(`${resp.status}: ${text.slice(0, 200)}`);
+    }
+    const data = await resp.json() as any;
+    return data.choices[0].message.content;
   }
-  return new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+  // Anthropic native
+  const message = await anthropicClient.messages.create(
+    {
+      model: modelCfg.model,
+      max_tokens: 2048,
+      system,
+      messages: [{ role: "user", content: userContent }],
+    },
+    { timeout: LLM_TIMEOUT_MS },
+  );
+  return (message.content[0] as any).text;
 }
 
 const SYSTEM_PROMPT = `Ты — эксперт по VBA (Visual Basic for Applications) для Microsoft Excel. 
@@ -70,21 +105,8 @@ export function registerRoutes(httpServer: Server, app: Express) {
 
       const modelId = typeof model === "string" && MODELS[model] ? model : DEFAULT_MODEL;
       const modelCfg = MODELS[modelId];
-      const client = getClient(modelCfg.provider);
 
-      const message = await client.messages.create(
-        {
-          model: modelCfg.model,
-          max_tokens: 2048,
-          system: SYSTEM_PROMPT,
-          messages: [{ role: "user", content: `Задача: ${task.trim()}` }],
-        },
-        {
-          timeout: LLM_TIMEOUT_MS,
-        },
-      );
-
-      const rawText = (message.content[0] as any).text;
+      const rawText = await callLLM(modelCfg, SYSTEM_PROMPT, `Задача: ${task.trim()}`);
       
       // Strip markdown code blocks if present
       const jsonText = rawText.replace(/```json\s*/g, "").replace(/```\s*/g, "").trim();
