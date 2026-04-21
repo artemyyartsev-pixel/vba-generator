@@ -1,0 +1,101 @@
+# VBA Generator — Cursor AI Rules
+
+## Описание проекта
+Веб-приложение для генерации VBA макросов для Excel по описанию задачи на русском языке.
+Пользователь вводит задачу → Claude Sonnet генерирует готовый VBA код с комментариями и инструкцией.
+
+## Стек
+
+### Frontend
+- React 18 + TypeScript
+- Tailwind CSS v3 (НЕ v4 — не использовать @import "tailwindcss" или @theme)
+- shadcn/ui компоненты (импорт через @/components/ui/*)
+- TanStack Query v5 (только объектная форма: useQuery({ queryKey, queryFn }))
+- wouter для роутинга с useHashLocation (обязательно — деплой в iframe)
+- lucide-react для иконок
+
+### Backend
+- Express.js + TypeScript
+- Drizzle ORM + better-sqlite3 (синхронный драйвер: .get(), .all(), .run())
+- Anthropic SDK для Claude Sonnet
+
+### Сборка
+- Vite (фронтенд) + tsx (бэкенд)
+- Единый порт 5000 для фронта и бэка
+
+## Структура проекта
+
+```
+client/src/
+  pages/Home.tsx        # Весь основной UI: ввод задачи, результат, примеры, история
+  App.tsx               # Роутер + QueryClientProvider
+  index.css             # CSS-переменные, тёмная тема, кастомные утилиты
+  components/ui/        # shadcn/ui компоненты (не редактировать напрямую)
+
+server/
+  routes.ts             # API эндпоинты + SYSTEM_PROMPT для Claude
+  storage.ts            # IStorage интерфейс + Drizzle реализация
+  index.ts              # Express сервер (не трогать)
+
+shared/
+  schema.ts             # Drizzle схема таблицы generations + Zod типы
+```
+
+## API эндпоинты
+
+| Метод | Путь           | Описание                          |
+|-------|----------------|-----------------------------------|
+| POST  | /api/generate  | Генерация макроса (task → code)   |
+| GET   | /api/history   | Последние 20 запросов из SQLite   |
+| GET   | /api/examples  | 6 готовых примеров (статика)      |
+
+## Схема БД (SQLite)
+
+```ts
+generations {
+  id: integer PK autoincrement
+  task: text        // описание задачи от пользователя
+  code: string      // сгенерированный VBA код
+  explanation: text // краткое пояснение на русском
+  category: text    // суммирование | фильтрация | форматирование | ...
+}
+```
+
+## Ключевые правила разработки
+
+### Общие
+- Язык интерфейса: русский
+- Тёмная тема — единственная, светлой нет
+- Цветовая схема: тёмный фон (#0d1117 код, #141a22 поверхности), акцент #00D084 (зелёный)
+- Шрифты: JetBrains Mono (код), Inter (UI)
+
+### VBA генерация (server/routes.ts → SYSTEM_PROMPT)
+- Claude возвращает строго JSON: { code, explanation, category, steps }
+- Комментарии в VBA коде — на русском
+- Запрещены символы переноса строки `_` (underscore continuation) — вызывают Syntax error
+- Все параметры функций пишутся в одну строку
+- Обязательно: On Error GoTo ErrorHandler в каждом макросе
+
+### Frontend (Home.tsx)
+- Подсветка VBA синтаксиса — функция highlightVBA(), обрабатывает построчно
+- Комментарии (`'`) изолируются ДО обработки строк и ключевых слов — иначе HTML-теги попадают в код
+- При изменении поля ввода — сбрасывать result (setResult(null))
+- Копирование через navigator.clipboard.writeText(result.code) — из чистого кода, не из innerHTML
+
+### Drizzle (storage.ts)
+- Синхронный драйвер: db.select().from(table).get() / .all()
+- НЕ деструктурировать: const [row] = db.select()... — не работает
+- Используй .returning().get() для INSERT
+
+### Запрещено
+- localStorage / sessionStorage / indexedDB / cookies — заблокированы в iframe
+- Символ _ для переноса строк в генерируемом VBA
+- Tailwind v4 синтаксис
+- Передавать hook в <Switch> — только в <Router hook={useHashLocation}>
+
+## Команды
+
+```bash
+npm run dev      # dev-сервер на :5000
+npm run build    # production сборка → dist/
+```
