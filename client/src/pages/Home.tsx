@@ -59,14 +59,21 @@ interface AppMeta {
   deployedAt: string;
 }
 
-const MODEL_OPTIONS = [
-  { value: "claude_sonnet_4_6", label: "Claude Sonnet 4.6" },
-  { value: "claude_opus_4_1", label: "Claude Opus 4.1" },
-  { value: "claude_3_5_haiku", label: "Claude 3.5 Haiku" },
-] as const;
-const MODEL_LABELS: Record<string, string> = Object.fromEntries(
-  MODEL_OPTIONS.map((option) => [option.value, option.label]),
-);
+interface ModelOption {
+  id: string;
+  label: string;
+  provider: string;
+  available: boolean;
+}
+
+const FALLBACK_MODELS: ModelOption[] = [
+  { id: "claude_sonnet_4_6", label: "Claude Sonnet 4.6", provider: "anthropic", available: true },
+  { id: "claude_opus_4_1",   label: "Claude Opus 4.1",  provider: "anthropic", available: true },
+  { id: "claude_3_5_haiku",  label: "Claude 3.5 Haiku", provider: "anthropic", available: true },
+  { id: "deepseek_v3",       label: "DeepSeek V3",      provider: "openrouter", available: false },
+  { id: "deepseek_r1",       label: "DeepSeek R1",      provider: "openrouter", available: false },
+  { id: "gpt_4o_mini",       label: "GPT-4o mini",      provider: "openrouter", available: false },
+];
 
 // VBA keyword highlighter (runs in browser)
 // Processes line by line to avoid regex cross-contamination between tokens
@@ -247,7 +254,7 @@ function StepsPanel({ steps }: { steps: string[] }) {
 export default function Home() {
   const { toast } = useToast();
   const [task, setTask] = useState("");
-  const [model, setModel] = useState<(typeof MODEL_OPTIONS)[number]["value"]>("claude_sonnet_4_6");
+  const [model, setModel] = useState<string>("claude_sonnet_4_6");
   const [result, setResult] = useState<GenerationResult | null>(null);
   const [copied, setCopied] = useState(false);
   const resultRef = useRef<HTMLDivElement>(null);
@@ -261,6 +268,10 @@ export default function Home() {
   });
   const { data: appMeta, isLoading: appMetaLoading, isError: appMetaError } = useQuery<AppMeta>({
     queryKey: ["/api/meta"],
+  });
+
+  const { data: modelOptions = FALLBACK_MODELS } = useQuery<ModelOption[]>({
+    queryKey: ["/api/models"],
   });
   const deployLabel = appMeta?.deployedAt
     ? new Date(appMeta.deployedAt).toLocaleString("ru-RU", {
@@ -388,7 +399,7 @@ export default function Home() {
                 <Select
                   value={model}
                   onValueChange={(nextModel) => {
-                    setModel(nextModel as (typeof MODEL_OPTIONS)[number]["value"]);
+                    setModel(nextModel);
                     if (result) setResult(null);
                   }}
                 >
@@ -396,9 +407,9 @@ export default function Home() {
                     <SelectValue placeholder="Выберите модель" />
                   </SelectTrigger>
                   <SelectContent>
-                    {MODEL_OPTIONS.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
+                    {modelOptions.map((option) => (
+                      <SelectItem key={option.id} value={option.id} disabled={!option.available}>
+                        {option.label}{!option.available ? " (нет ключа)" : ""}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -515,7 +526,7 @@ export default function Home() {
                           variant="outline"
                           className="border-green/30 bg-green/10 text-green text-[10px] font-mono"
                         >
-                          {MODEL_LABELS[result.model || model] || result.model || model}
+                          {modelOptions.find(o => o.id === (result.model || model))?.label || result.model || model}
                         </Badge>
                       </div>
                     </div>
