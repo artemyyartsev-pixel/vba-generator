@@ -544,7 +544,11 @@ export default function Home() {
                     data-testid="button-copy"
                     size="sm"
                     variant="ghost"
-                    className="h-8 text-xs font-mono gap-1.5 text-green hover:bg-green/10 hover:text-green border border-green/40 rounded-lg"
+                    className={`h-8 text-xs font-mono gap-1.5 border rounded-lg transition-all duration-200 ${
+                      copied
+                        ? "bg-orange-500/20 text-orange-400 border-orange-500/60 hover:bg-orange-500/30 hover:text-orange-300"
+                        : "text-green hover:bg-green/10 hover:text-green border-green/40"
+                    }`}
                     onClick={handleCopy}
                   >
                     {copied ? <CheckCheck size={13} /> : <Copy size={13} />}
