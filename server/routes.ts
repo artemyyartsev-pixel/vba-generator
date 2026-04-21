@@ -74,7 +74,7 @@ const SYSTEM_PROMPT = `Ты — эксперт по VBA (Visual Basic for Applic
 4. В "explanation" — краткое описание что делает макрос (1-2 предложения), на русском
 5. В "category" — одна из: "суммирование", "фильтрация", "форматирование", "поиск", "сортировка", "копирование", "диаграммы", "прочее"
 6. В "steps" — массив строк с инструкцией по вставке (3-5 шагов), на русском
-7. Код должен быть production-ready: с обработкой ошибок, комментариями на русском, понятными именами переменных
+7. Код должен быть production-ready: с обработкой ошибок, комментариями на английском (ОБЯЗАТЕЛЬНО: только ASCII в коде!), понятными именами переменных. Кириллицу можно использовать ТОЛЬКО в строковых литералах MsgBox и подобных — там она допустима. В комментариях и именах переменных — только латиница.
 8. Используй On Error GoTo для обработки ошибок
 9. Всегда завершай Sub корректно
 10. КРИТИЧНО: Никогда не используй символ переноса строки _ (underscore continuation) в коде. Все параметры функций пиши в одну строку. Например ПРАВИЛЬНО: ws.ChartObjects.Add(Left:=100, Top:=100, Width:=400, Height:=300) — всё на одной строке. Многострочные вызовы с _ часто вызывают Syntax error в VBA.
@@ -82,7 +82,7 @@ const SYSTEM_PROMPT = `Ты — эксперт по VBA (Visual Basic for Applic
 
 Пример ответа:
 {
-  "code": "Sub СуммаПоУсловию()\\n    ' Суммирует колонку A если B > 10\\n    Dim ws As Worksheet\\n    Dim lastRow As Long\\n    Dim total As Double\\n    Dim i As Long\\n    \\n    On Error GoTo ErrorHandler\\n    \\n    Set ws = ActiveSheet\\n    lastRow = ws.Cells(ws.Rows.Count, \\"A\\").End(xlUp).Row\\n    total = 0\\n    \\n    For i = 2 To lastRow\\n        If ws.Cells(i, 2).Value > 10 Then\\n            total = total + ws.Cells(i, 1).Value\\n        End If\\n    Next i\\n    \\n    MsgBox \\"Итого: \\" & total, vbInformation\\n    Exit Sub\\n    \\nErrorHandler:\\n    MsgBox \\"Ошибка: \\" & Err.Description, vbCritical\\nEnd Sub",
+  "code": "Sub SumIfCondition()\\n    ' Sum column A where column B > 10\\n    Dim ws As Worksheet\\n    Dim lastRow As Long\\n    Dim total As Double\\n    Dim i As Long\\n    \\n    On Error GoTo ErrorHandler\\n    \\n    Set ws = ActiveSheet\\n    lastRow = ws.Cells(ws.Rows.Count, \\"A\\").End(xlUp).Row\\n    total = 0\\n    \\n    For i = 2 To lastRow\\n        If ws.Cells(i, 2).Value > 10 Then\\n            total = total + ws.Cells(i, 1).Value\\n        End If\\n    Next i\\n    \\n    MsgBox \\"Итого: \\" & total, vbInformation\\n    Exit Sub\\n    \\nErrorHandler:\\n    MsgBox \\"Ошибка: \\" & Err.Description, vbCritical\\nEnd Sub",
   "explanation": "Макрос перебирает все строки и суммирует значения в колонке A только если в колонке B значение больше 10.",
   "category": "суммирование",
   "steps": ["Откройте Excel и нажмите Alt+F11", "В меню выберите Insert → Module", "Вставьте код в открывшееся окно", "Закройте редактор (Alt+Q)", "Запустите макрос через Alt+F8 → выберите имя → Run"]
