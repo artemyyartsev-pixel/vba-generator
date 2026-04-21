@@ -305,10 +305,43 @@ export default function Home() {
 
   async function handleCopy() {
     if (!result) return;
-    await navigator.clipboard.writeText(result.code);
-    setCopied(true);
-    toast({ title: "Скопировано!", description: "Код скопирован в буфер обмена" });
-    setTimeout(() => setCopied(false), 2500);
+    const text = result.code;
+    let success = false;
+
+    // Try modern Clipboard API first
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      try {
+        await navigator.clipboard.writeText(text);
+        success = true;
+      } catch {
+        // fall through to legacy
+      }
+    }
+
+    // Fallback: create a temporary textarea and execCommand
+    if (!success) {
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0;';
+        document.body.appendChild(ta);
+        ta.focus();
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+        success = true;
+      } catch {
+        // ignore
+      }
+    }
+
+    if (success) {
+      setCopied(true);
+      toast({ title: "Скопировано!", description: "Код скопирован в буфер обмена" });
+      setTimeout(() => setCopied(false), 2500);
+    } else {
+      toast({ title: "Не удалось скопировать", description: "Выделите код вручную и нажмите Ctrl+C", variant: "destructive" });
+    }
   }
 
   function handleExampleClick(ex: Example) {
